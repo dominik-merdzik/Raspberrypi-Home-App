@@ -45,7 +45,7 @@ function bytesToGB(bytes: number) {
 }
 
 export async function getSystemDetails() {
-  const isRaspberryPi = os.platform() === "linux" && os.arch() === "arm";
+  const isRaspberryPi = os.platform() === "linux" && os.arch() === "arm64";
 
   if (!isRaspberryPi) {
     return {
