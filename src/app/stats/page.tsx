@@ -6,7 +6,7 @@ export default async function Home() {
   const systemInfo = await getSystemDetails();
 
   return (
-    <main className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-6">
+    <main className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-6 dark-theme">
       <h1 className="text-3xl font-bold mb-6 text-center">Dominik's Raspberry Pi Stats</h1>
 
       <Card className="w-full max-w-md bg-gray-800">
@@ -20,6 +20,8 @@ export default async function Home() {
               ["Platform", systemInfo.os.platform()],
               ["Architecture", systemInfo.os.arch()],
               ["CPU Temperature", `${systemInfo.cpuTemp.toFixed(1)}°C`],
+              ["Disk Usage", systemInfo.diskUsage],
+              ["Uptime", systemInfo.uptime],
             ].map(([label, value]) => (
               <div key={label} className="flex justify-between text-sm">
                 <span className="text-gray-400">{label}:</span>
@@ -43,7 +45,6 @@ export default async function Home() {
 
           <div className="space-y-2">
             <h3 className="text-lg font-semibold text-white">Memory Usage</h3>
-            <p>;-; 1GB</p>
             <div className="flex justify-between text-sm text-gray-400">
               <span>Used</span>
               <span>{systemInfo.memoryUsage.used.toFixed(2)} / {systemInfo.memoryUsage.total.toFixed(2)} GB</span>
