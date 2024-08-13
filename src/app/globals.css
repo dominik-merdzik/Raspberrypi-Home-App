@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+
+main{
+  background-color: #1A202C;
+}
+
 .dark-theme {
   background-color: #1a202c; /* dark gray for bg-gray-900 */
   color: #ffffff;           /* white text */
@@ -80,5 +85,6 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-color: #1A202C !important;
   }
 }
