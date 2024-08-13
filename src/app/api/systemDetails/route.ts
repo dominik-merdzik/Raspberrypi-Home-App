@@ -110,6 +110,10 @@ export async function GET() {
       cpuModel: "Unknown",
       loadAverage: "0.00, 0.00, 0.00",
       filesystem: boilerplateFilesystem,
+    }, {
+      headers: {
+        'Cache-Control': 'no-store'
+      }
     });
   }
 
@@ -142,5 +146,9 @@ export async function GET() {
     cpuModel,
     loadAverage,
     filesystem,
+  }, {
+    headers: {
+      'Cache-Control': 'no-store'
+    }
   });
 }
