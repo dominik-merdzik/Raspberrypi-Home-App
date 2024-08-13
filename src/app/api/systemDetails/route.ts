@@ -35,6 +35,7 @@ async function getDiskUsage() {
 async function getUptime() {
   try {
     const { stdout } = await execAsync("uptime -p");
+    console.log(`Uptime fetched: ${stdout.trim()}`);  // Add this logging
     return stdout.trim();
   } catch (error) {
     return "0 minutes";
@@ -78,7 +79,7 @@ function bytesToGB(bytes: number) {
 }
 
 function isRaspberryPi() {
-  return os.platform() === "linux" && os.arch().startsWith("arm");
+  return os.platform() === "linux" && os.arch().startsWith("arm64");
 }
 
 export async function GET() {
@@ -124,6 +125,7 @@ export async function GET() {
   const cpuTemp = await getCpuTemp();
   const diskUsage = await getDiskUsage();
   const uptime = await getUptime();
+  console.log(`API route called. Uptime: ${uptime}`);
   const activeProcesses = await getActiveProcesses();
   const cpuModel = await getCpuModel();
   const loadAverage = await getLoadAverage();
