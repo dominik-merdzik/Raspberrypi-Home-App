@@ -153,4 +153,10 @@ export async function GET() {
       'Cache-Control': 'no-store'
     }
   });
+<<<<<<< HEAD
 }
+=======
+}
+
+export const dynamic = "force-dynamic";
+>>>>>>> 2de8e6c (update)
