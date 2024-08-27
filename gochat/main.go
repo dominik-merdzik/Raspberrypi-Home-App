@@ -187,13 +187,18 @@ func handleMessages() {
 }
 
 func main() {
-	http.HandleFunc("/ws", handleConnections)
+    http.HandleFunc("/ws", handleConnections)
 
-	//start listening for incoming chat messages
-	go handleMessages()
+    // Start listening for incoming chat messages
+    go handleMessages()
 
-	log.Println("Starting WebSocket server on :8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+    // Paths to your certificate and key files
+    certFile := "/home/dominikmerdzik/ssl/dominikmerdzik.com.pem" // Update this path
+    keyFile := "/home/dominikmerdzik/ssl/dominikmerdzik.com.key"   // Update this path
+
+    log.Println("Starting WebSocket server on HTTPS :8443")
+    if err := http.ListenAndServeTLS(":8443", certFile, keyFile, nil); err != nil {
+        log.Fatalf("Failed to start HTTPS server: %v", err)
+    }
 }
+

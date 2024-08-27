@@ -12,7 +12,7 @@ interface Message {
 
 const MAX_MESSAGE_LENGTH = 574;
 const COOLDOWN_TIME = 5; //cooldown time in seconds
-const CONNECTION_TIMEOUT = 7000; // 7 seconds timeout for connection
+const CONNECTION_TIMEOUT = 99999; // 7 seconds timeout for connection
 
 const GoChat = () => {
     const [username, setUsername] = useState<string>('');
