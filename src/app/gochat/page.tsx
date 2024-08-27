@@ -33,7 +33,7 @@ const GoChat = () => {
             setConnectionFailed(false);
 
             // const socket = new WebSocket('ws://localhost:8080/ws');
-            const socket = new WebSocket(config.localWebSocketURL);
+            const socket = new WebSocket(config.piWebSocketURL);
 
             const timeoutId = setTimeout(() => {
                 if (socket.readyState !== WebSocket.OPEN) {
