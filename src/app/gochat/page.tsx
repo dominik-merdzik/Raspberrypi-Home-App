@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 
+import config from '../../../config.json';
+
 interface Message {
     username: string;
     message: string;
@@ -30,7 +32,8 @@ const GoChat = () => {
             setLoading(true);
             setConnectionFailed(false);
 
-            const socket = new WebSocket('ws://localhost:8080/ws');
+            // const socket = new WebSocket('ws://localhost:8080/ws');
+            const socket = new WebSocket(config.localWebSocketURL);
 
             const timeoutId = setTimeout(() => {
                 if (socket.readyState !== WebSocket.OPEN) {
