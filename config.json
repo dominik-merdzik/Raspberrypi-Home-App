@@ -1,5 +1,5 @@
 {
-    "localWebSocketURL": "ws://localhost:8080/ws",
+    "localWebSocketURL": "wss://localhost:8443/ws",
     "piWebSocketURL": "wss://pi.dominikmerdzik.com/ws"
 }
 

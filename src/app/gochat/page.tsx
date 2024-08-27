@@ -32,8 +32,8 @@ const GoChat = () => {
             setLoading(true);
             setConnectionFailed(false);
 
+            const socket = new WebSocket(process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:8080/ws');
             // const socket = new WebSocket('ws://localhost:8080/ws');
-            const socket = new WebSocket(config.piWebSocketURL);
 
             const timeoutId = setTimeout(() => {
                 if (socket.readyState !== WebSocket.OPEN) {

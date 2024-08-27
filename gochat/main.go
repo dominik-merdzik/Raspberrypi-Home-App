@@ -4,44 +4,46 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/joho/godotenv"
 )
 
-var clients = make(map[*websocket.Conn]bool)           //connected clients
-var clientUsernames = make(map[string]*websocket.Conn) //map of usernames to websocket connections
-var broadcast = make(chan Message)                     //broadcast channel
-var recentMessages []Message                           //store recent messages
-var mu sync.Mutex                                      //mutex to ensure thread-safe writes
+var clients = make(map[*websocket.Conn]bool)           // connected clients
+var clientUsernames = make(map[string]*websocket.Conn) // map of usernames to websocket connections
+var broadcast = make(chan Message)                     // broadcast channel
+var recentMessages []Message                           // store recent messages
+var mu sync.Mutex                                      // mutex to ensure thread-safe writes
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		//allow all connections by default
+		// allow all connections by default
 		return true
 	},
 }
 
-// define our message object
+// Message defines our message object
 type Message struct {
 	Username string `json:"username"`
 	Message  string `json:"message"`
 	Color    string `json:"color"`
 }
 
-// anti-spam control
+// Anti-spam control
 var lastMessageTimes = make(map[string]time.Time)
-var messageCounts = make(map[string]int) //track the number of messages sent
+var messageCounts = make(map[string]int) // track the number of messages sent
 
-const spamThreshold = 3              //allow 3 messages before cooldown
-const spamCooldown = 5 * time.Second //5 seconds cooldown
+const spamThreshold = 3              // allow 3 messages before cooldown
+const spamCooldown = 5 * time.Second // 5 seconds cooldown
 
 func sanitizeMessage(input string) string {
-	//basic sanitization: escape any dangerous characters
+	// basic sanitization: escape any dangerous characters
 	return strings.ReplaceAll(input, "<", "&lt;")
 }
 
@@ -52,11 +54,14 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 
+	// Log when a new connection is established
+	log.Printf("New connection established from %s", r.RemoteAddr)
+
 	mu.Lock()
 	clients[ws] = true
 	mu.Unlock()
 
-	//receive the initial message with username and color
+	// Receive the initial message with username and color
 	var initialMessage Message
 	err = ws.ReadJSON(&initialMessage)
 	if err != nil {
@@ -68,11 +73,14 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//check if the username is already taken
+	// Log the username of the connected client
+	log.Printf("User connected: %s from %s", initialMessage.Username, r.RemoteAddr)
+
+	// Check if the username is already taken
 	mu.Lock()
 	if _, exists := clientUsernames[initialMessage.Username]; exists {
 		mu.Unlock()
-		//send an error message back to the client
+		// Send an error message back to the client
 		ws.WriteJSON(Message{Username: "Server", Message: "Username is already taken. Please choose a different name.", Color: "#ff0000"})
 		ws.Close()
 		mu.Lock()
@@ -81,19 +89,19 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//store the username and its connection
+	// Store the username and its connection
 	clientUsernames[initialMessage.Username] = ws
 	mu.Unlock()
 
-	//send join notification as a system message
+	// Send join notification as a system message
 	systemMsg := Message{
 		Username: "System",
 		Message:  fmt.Sprintf("%s has joined the chat!", initialMessage.Username),
-		Color:    "#999999", //light grey for the system message
+		Color:    "#999999", // light grey for the system message
 	}
 	broadcast <- systemMsg
 
-	//send the last 5 messages to the newly connected client
+	// Send the last 5 messages to the newly connected client
 	mu.Lock()
 	for _, msg := range recentMessages {
 		err := ws.WriteJSON(msg)
@@ -117,14 +125,14 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			delete(clients, ws)
 			delete(clientUsernames, initialMessage.Username)
 			if len(clients) == 0 {
-				recentMessages = []Message{} //clear recent messages if no clients are connected
+				recentMessages = []Message{} // clear recent messages if no clients are connected
 				log.Printf("No clients connected. Cleared recent messages.")
 			}
 			mu.Unlock()
 			break
 		}
 
-		//check message length
+		// Check message length
 		if len(msg.Message) > 574 {
 			mu.Lock()
 			ws.WriteJSON(Message{Username: "Server", Message: "Message too long. Max 574 characters.", Color: "#ff0000"})
@@ -132,14 +140,14 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		//sanitize the message
+		// Sanitize the message
 		msg.Message = sanitizeMessage(msg.Message)
 
-		//anti-spam logic
+		// Anti-spam logic
 		now := time.Now()
 		lastMsgTime, exists := lastMessageTimes[msg.Username]
 		if exists && now.Sub(lastMsgTime) < spamCooldown {
-			//increment the message count if within the cooldown period
+			// Increment the message count if within the cooldown period
 			messageCounts[msg.Username]++
 			if messageCounts[msg.Username] > spamThreshold {
 				mu.Lock()
@@ -148,20 +156,20 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 		} else {
-			//reset message count if outside the cooldown period
+			// Reset message count if outside the cooldown period
 			messageCounts[msg.Username] = 1
 			lastMessageTimes[msg.Username] = now
 		}
 
-		//add the new message to recentMessages
+		// Add the new message to recentMessages
 		mu.Lock()
 		recentMessages = append(recentMessages, msg)
 		if len(recentMessages) > 5 {
-			recentMessages = recentMessages[1:] //keep only the last 5 messages
+			recentMessages = recentMessages[1:] // keep only the last 5 messages
 		}
 		mu.Unlock()
 
-		//send the newly received message to the broadcast channel
+		// Send the newly received message to the broadcast channel
 		broadcast <- msg
 	}
 }
@@ -180,25 +188,38 @@ func handleMessages() {
 			}
 		}
 		if len(clients) == 0 {
-			recentMessages = []Message{} //clear recent messages if no clients are connected
+			recentMessages = []Message{} // clear recent messages if no clients are connected
 		}
 		mu.Unlock()
 	}
 }
 
 func main() {
-    http.HandleFunc("/ws", handleConnections)
+	http.HandleFunc("/ws", handleConnections)
 
-    // Start listening for incoming chat messages
-    go handleMessages()
+	// Start listening for incoming chat messages
+	go handleMessages()
 
-    // Paths to your certificate and key files
-    certFile := "/home/dominikmerdzik/ssl/dominikmerdzik.com.pem" // Update this path
-    keyFile := "/home/dominikmerdzik/ssl/dominikmerdzik.com.key"   // Update this path
+	// Load the secrets file
+	err := godotenv.Load("../.env")
+	if err != nil {
+		log.Fatalf("Error loading secrets file: %v", err)
+	}
 
-    log.Println("Starting WebSocket server on HTTPS :8443")
-    if err := http.ListenAndServeTLS(":8443", certFile, keyFile, nil); err != nil {
-        log.Fatalf("Failed to start HTTPS server: %v", err)
-    }
+	// Get certfile and keyfile paths from environment variables
+	certFile := os.Getenv("CERTFILE")
+	keyFile := os.Getenv("KEYFILE")
+
+	if certFile == "" || keyFile == "" {
+		log.Fatal("Certfile or Keyfile path not set in secrets file")
+	}
+
+	// Log that the server is starting
+	log.Printf("Starting server on :8443")
+
+	// Start the HTTPS server
+	err = http.ListenAndServeTLS(":8443", certFile, keyFile, nil)
+	if err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
 }
-
