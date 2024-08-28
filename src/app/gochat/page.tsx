@@ -11,7 +11,7 @@ interface Message {
 
 const MAX_MESSAGE_LENGTH = 574;
 const COOLDOWN_TIME = 5; // cooldown time in seconds
-const CONNECTION_TIMEOUT = 7000; // 7 seconds timeout for connection
+const FETCH_INTERVAL = 2000; // interval for fetching messages in milliseconds
 
 const GoChat = () => {
     const [username, setUsername] = useState<string>('');
@@ -75,7 +75,6 @@ const GoChat = () => {
     };
 
     const handleLogin = async () => {
-        console.log("Join Chat button clicked");
         if (username.trim()) {
             setUsernameError(null);
             setLoading(true);
@@ -105,27 +104,27 @@ const GoChat = () => {
         }
     };
 
-    const fetchMessages = async (username: string) => {
+    const fetchMessages = async () => {
         try {
             const response = await fetch(`/api/goChat?username=${encodeURIComponent(username)}`);
             const reader = response.body?.getReader();
             const decoder = new TextDecoder();
             let partialMessage = '';  // holds any partial message between chunks
-    
+
             if (reader) {
                 while (true) {
                     const { value, done } = await reader.read();
                     if (done) break;
-    
+
                     const chunk = decoder.decode(value, { stream: true });
                     partialMessage += chunk;
-    
+
                     // split the chunk into individual messages
                     const messages = partialMessage.split('\n');
-    
+
                     // the last item in the array might be a partial message, keep it for the next chunk
                     partialMessage = messages.pop() || '';
-    
+
                     // process each complete message
                     messages.forEach((messageStr) => {
                         if (messageStr.trim()) {
@@ -134,7 +133,7 @@ const GoChat = () => {
                         }
                     });
                 }
-    
+
                 // handle any remaining partial message as a complete message
                 if (partialMessage.trim()) {
                     const [username, message] = partialMessage.split(':');
@@ -145,10 +144,12 @@ const GoChat = () => {
             console.error('Failed to fetch messages:', error);
         }
     };
-    
+
+    // Periodically fetch messages if logged in
     useEffect(() => {
         if (isLoggedIn) {
-            fetchMessages(username);
+            const interval = setInterval(fetchMessages, FETCH_INTERVAL);
+            return () => clearInterval(interval);
         }
     }, [isLoggedIn]);
 
