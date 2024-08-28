@@ -2,17 +2,16 @@
 
 import { useEffect, useState } from 'react';
 
-import config from '../../../config.json';
-
 interface Message {
     username: string;
     message: string;
     color: string;
+    isSystem: boolean;
 }
 
 const MAX_MESSAGE_LENGTH = 574;
-const COOLDOWN_TIME = 5; //cooldown time in seconds
-const CONNECTION_TIMEOUT = 99999; // 7 seconds timeout for connection
+const COOLDOWN_TIME = 5; // cooldown time in seconds
+const CONNECTION_TIMEOUT = 7000; // 7 seconds timeout for connection
 
 const GoChat = () => {
     const [username, setUsername] = useState<string>('');
@@ -20,69 +19,18 @@ const GoChat = () => {
     const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
     const [message, setMessage] = useState<string>('');
     const [chat, setChat] = useState<Message[]>([]);
-    const [ws, setWs] = useState<WebSocket | null>(null);
     const [charCount, setCharCount] = useState<number>(MAX_MESSAGE_LENGTH);
     const [cooldownTime, setCooldownTime] = useState<number | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
     const [connectionFailed, setConnectionFailed] = useState<boolean>(false);
     const [usernameError, setUsernameError] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (isLoggedIn) {
-            setLoading(true);
-            setConnectionFailed(false);
-
-            const socket = new WebSocket(process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://localhost:8080/ws');
-            // const socket = new WebSocket('ws://localhost:8080/ws');
-
-            const timeoutId = setTimeout(() => {
-                if (socket.readyState !== WebSocket.OPEN) {
-                    socket.close(); // Close the socket if it's still trying to connect
-                    setLoading(false);
-                    setConnectionFailed(true);
-                }
-            }, CONNECTION_TIMEOUT);
-
-            socket.onopen = () => {
-                clearTimeout(timeoutId);
-                socket.send(JSON.stringify({ username, color }));
-                setLoading(false);
-            };
-
-            socket.onmessage = (event) => {
-                const incomingMessage = JSON.parse(event.data);
-
-                if (incomingMessage.message.includes("Username is already taken")) {
-                    setUsernameError(incomingMessage.message);
-                    setIsLoggedIn(false); //go back to login state to allow user to choose a new name
-                    setWs(null);
-                } else if (incomingMessage.message.includes("Please wait")) {
-                    setCooldownTime(COOLDOWN_TIME);
-                } else {
-                    setChat((prevChat) => [...prevChat, incomingMessage]);
-                }
-            };
-
-            socket.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                setConnectionFailed(true);
-            };
-
-            setWs(socket);
-
-            return () => {
-                clearTimeout(timeoutId);
-                socket.close();
-            };
-        }
-    }, [isLoggedIn]);
-
     const retryConnection = () => {
         setConnectionFailed(false);
-        setIsLoggedIn(false); //resets the login state to allow re-login
+        setIsLoggedIn(false); // resets the login state to allow re-login
     };
 
-    // Cooldown timer effect
+    // cooldown timer effect
     useEffect(() => {
         if (cooldownTime !== null) {
             if (cooldownTime > 0) {
@@ -94,12 +42,27 @@ const GoChat = () => {
         }
     }, [cooldownTime]);
 
-    const sendMessage = () => {
-        if (ws && message.trim() && cooldownTime === null) {
-            const newMessage = { username, message, color };
-            ws.send(JSON.stringify(newMessage));
-            setMessage('');
-            setCharCount(MAX_MESSAGE_LENGTH);
+    const sendMessage = async () => {
+        if (message.trim() && cooldownTime === null) {
+            const newMessage = { username, message, color, isSystem: false };
+            try {
+                const response = await fetch('/api/goChat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(newMessage),
+                });
+
+                if (!response.ok) {
+                    console.error('Failed to send message:', await response.text());
+                } else {
+                    setMessage('');
+                    setCharCount(MAX_MESSAGE_LENGTH);
+                }
+            } catch (error) {
+                console.error('Failed to send message:', error);
+            }
         }
     };
 
@@ -111,12 +74,83 @@ const GoChat = () => {
         }
     };
 
-    const handleLogin = () => {
+    const handleLogin = async () => {
+        console.log("Join Chat button clicked");
         if (username.trim()) {
             setUsernameError(null);
-            setIsLoggedIn(true);
+            setLoading(true);
+            setConnectionFailed(false);
+
+            try {
+                const response = await fetch('/api/goChat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, color }),
+                });
+
+                if (response.ok) {
+                    setLoading(false);
+                    setIsLoggedIn(true);
+                } else {
+                    setUsernameError('Failed to connect');
+                    setLoading(false);
+                    setConnectionFailed(true);
+                }
+            } catch (error) {
+                console.error('Connection error:', error);
+                setConnectionFailed(true);
+            }
         }
     };
+
+    const fetchMessages = async (username: string) => {
+        try {
+            const response = await fetch(`/api/goChat?username=${encodeURIComponent(username)}`);
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+            let partialMessage = '';  // holds any partial message between chunks
+    
+            if (reader) {
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+    
+                    const chunk = decoder.decode(value, { stream: true });
+                    partialMessage += chunk;
+    
+                    // split the chunk into individual messages
+                    const messages = partialMessage.split('\n');
+    
+                    // the last item in the array might be a partial message, keep it for the next chunk
+                    partialMessage = messages.pop() || '';
+    
+                    // process each complete message
+                    messages.forEach((messageStr) => {
+                        if (messageStr.trim()) {
+                            const [username, message] = messageStr.split(':');
+                            setChat((prevChat) => [...prevChat, { username: username.trim(), message: message?.trim() || '', color: username === "System" ? "#00FF00" : color, isSystem: username === "System" }]);
+                        }
+                    });
+                }
+    
+                // handle any remaining partial message as a complete message
+                if (partialMessage.trim()) {
+                    const [username, message] = partialMessage.split(':');
+                    setChat((prevChat) => [...prevChat, { username: username.trim(), message: message?.trim() || '', color: username === "System" ? "#00FF00" : color, isSystem: username === "System" }]);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch messages:', error);
+        }
+    };
+    
+    useEffect(() => {
+        if (isLoggedIn) {
+            fetchMessages(username);
+        }
+    }, [isLoggedIn]);
 
     return (
         <div style={styles.container}>
@@ -151,25 +185,26 @@ const GoChat = () => {
             ) : (
                 <div style={styles.chatContainer}>
                     <div style={styles.headingContainer}>
-                    <h1 style={styles.heading}>Blueberry Chat</h1>
-                    <strong style={styles.headingUsername}>{username}</strong>
+                        <h1 style={styles.heading}>Blueberry Chat</h1>
+                        <strong style={styles.headingUsername}>{username}</strong>
                     </div>
                     <div id="chatbox" style={styles.chatBox}>
                         {chat.map((msg, index) => (
-                            <p
-                                key={index}
-                                style={msg.username === "System"
-                                    ? { color: 'lightgray', opacity: 0.2 } //light grey for server messages
-                                    : styles.chatMessage
-                                }
-                            >
-                                <strong style={{ color: msg.username === "System" ? 'lightgray' : msg.color }}>
-                                    {msg.username}:{" "}
-                                </strong>
-                                <span style={{ color: msg.username === "System" ? 'lightgray' : 'white' }}>
-                                    {msg.message}
-                                </span>
-                            </p>
+                            <div key={index} style={msg.isSystem ? { padding: '10px', backgroundColor: '#222', borderRadius: '8px' } : {}}>
+                                <p
+                                    style={msg.isSystem
+                                        ? { color: '#00FF00', opacity: 1 } // green for system messages
+                                        : styles.chatMessage
+                                    }
+                                >
+                                    <strong style={{ color: msg.isSystem ? '#00FF00' : msg.color }}>
+                                        {msg.username !== "System" ? `${msg.username}: ` : ''}
+                                    </strong>
+                                    <span style={{ color: msg.isSystem ? '#00FF00' : 'white' }}>
+                                        {msg.message}
+                                    </span>
+                                </p>
+                            </div>
                         ))}
                     </div>
                     <input
@@ -182,7 +217,7 @@ const GoChat = () => {
                     />
                     <div style={styles.infoContainer}>
                         <span style={styles.timer}>
-                            {cooldownTime !== null ? `Cooldown: ${cooldownTime}s` : null}
+                            {cooldownTime !== null ? `${cooldownTime}s` : null}
                         </span>
                         <span style={styles.charCounter}>{charCount} characters remaining</span>
                     </div>
@@ -243,12 +278,6 @@ const styles = {
     },
     chatMessage: {
         marginBottom: '10px',
-    },
-    systemMessage: {
-        marginBottom: '10px',
-        color: 'lightgray',
-        opacity: 0.6,
-        fontStyle: 'italic',
     },
     input: {
         width: '100%',
