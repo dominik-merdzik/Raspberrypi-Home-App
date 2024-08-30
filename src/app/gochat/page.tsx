@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, CSSProperties } from 'react';
 
 interface Message {
     username: string;
@@ -30,7 +30,6 @@ const GoChat = () => {
         setIsLoggedIn(false); // resets the login state to allow re-login
     };
 
-    // cooldown timer effect
     useEffect(() => {
         if (cooldownTime !== null) {
             if (cooldownTime > 0) {
@@ -75,7 +74,6 @@ const GoChat = () => {
     };
 
     const handleLogin = async () => {
-        console.log("Join Chat button clicked");
         if (username.trim()) {
             setUsernameError(null);
             setLoading(true);
@@ -110,42 +108,39 @@ const GoChat = () => {
             const response = await fetch(`/api/goChat?username=${encodeURIComponent(username)}`);
             const reader = response.body?.getReader();
             const decoder = new TextDecoder();
-            let partialMessage = '';  // holds any partial message between chunks
-    
+            let partialMessage = '';
+
             if (reader) {
                 while (true) {
                     const { value, done } = await reader.read();
                     if (done) break;
-    
+
                     const chunk = decoder.decode(value, { stream: true });
                     partialMessage += chunk;
-    
-                    // split the chunk into individual messages
+
                     const messages = partialMessage.split('\n');
-    
-                    // the last item in the array might be a partial message, keep it for the next chunk
                     partialMessage = messages.pop() || '';
-    
-                    // process each complete message
+
                     messages.forEach((messageStr) => {
                         if (messageStr.trim()) {
                             const [username, message] = messageStr.split(':');
-                            setChat((prevChat) => [...prevChat, { username: username.trim(), message: message?.trim() || '', color: username === "System" ? "#00FF00" : color, isSystem: username === "System" }]);
+                            const userColor = chat.find(msg => msg.username === username.trim())?.color || '#ffffff';
+                            setChat((prevChat) => [...prevChat, { username: username.trim(), message: message?.trim() || '', color: username === "System" ? "#00FF00" : userColor, isSystem: username === "System" }]);
                         }
                     });
                 }
-    
-                // handle any remaining partial message as a complete message
+
                 if (partialMessage.trim()) {
                     const [username, message] = partialMessage.split(':');
-                    setChat((prevChat) => [...prevChat, { username: username.trim(), message: message?.trim() || '', color: username === "System" ? "#00FF00" : color, isSystem: username === "System" }]);
+                    const userColor = chat.find(msg => msg.username === username.trim())?.color || '#ffffff';
+                    setChat((prevChat) => [...prevChat, { username: username.trim(), message: message?.trim() || '', color: username === "System" ? "#00FF00" : userColor, isSystem: username === "System" }]);
                 }
             }
         } catch (error) {
             console.error('Failed to fetch messages:', error);
         }
     };
-    
+
     useEffect(() => {
         if (isLoggedIn) {
             fetchMessages(username);
@@ -191,16 +186,11 @@ const GoChat = () => {
                     <div id="chatbox" style={styles.chatBox}>
                         {chat.map((msg, index) => (
                             <div key={index} style={msg.isSystem ? { padding: '10px', backgroundColor: '#222', borderRadius: '8px' } : {}}>
-                                <p
-                                    style={msg.isSystem
-                                        ? { color: '#00FF00', opacity: 1 } // green for system messages
-                                        : styles.chatMessage
-                                    }
-                                >
-                                    <strong style={{ color: msg.isSystem ? '#00FF00' : msg.color }}>
+                                <p style={{ color: msg.isSystem ? '#00FF00' : 'white', opacity: msg.isSystem ? 1 : undefined }}>
+                                    <strong style={{ color: msg.color }}>
                                         {msg.username !== "System" ? `${msg.username}: ` : ''}
                                     </strong>
-                                    <span style={{ color: msg.isSystem ? '#00FF00' : 'white' }}>
+                                    <span>
                                         {msg.message}
                                     </span>
                                 </p>
@@ -230,7 +220,8 @@ const GoChat = () => {
     );
 };
 
-const styles = {
+// Explicitly typing the styles object as a CSSProperties type
+const styles: Record<string, CSSProperties> = {
     container: {
         display: 'flex',
         justifyContent: 'center',
@@ -240,10 +231,10 @@ const styles = {
         color: 'white',
     },
     loginContainer: {
-        textAlign: 'center' as const,
+        textAlign: 'center',
     },
     loadingContainer: {
-        textAlign: 'center' as const,
+        textAlign: 'center',
     },
     loadingText: {
         width: '300px',
@@ -259,18 +250,18 @@ const styles = {
     },
     headingContainer: {
         display: 'flex',
-        justifyContent: 'space-between' as const,
+        justifyContent: 'space-between',
     },
     heading: {
         marginBottom: '20px',
     },
     headingUsername: {
-        textAlign: 'right' as const,
+        textAlign: 'right',
         color: '#5f5f5f9b',
     },
     chatBox: {
         height: '500px',
-        overflowY: 'scroll' as const,
+        overflowY: 'scroll',
         marginBottom: '20px',
         padding: '10px',
         backgroundColor: '#222',
@@ -278,6 +269,7 @@ const styles = {
     },
     chatMessage: {
         marginBottom: '10px',
+        color: 'white',
     },
     input: {
         width: '100%',
@@ -299,7 +291,7 @@ const styles = {
     },
     infoContainer: {
         display: 'flex',
-        justifyContent: 'space-between' as const,
+        justifyContent: 'space-between',
         marginBottom: '10px',
         color: 'lightgray',
     },
@@ -307,7 +299,7 @@ const styles = {
         color: 'red',
     },
     charCounter: {
-        textAlign: 'right' as const,
+        textAlign: 'right',
         color: 'lightgray',
     },
     button: {

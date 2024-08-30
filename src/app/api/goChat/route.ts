@@ -6,11 +6,15 @@ const userSockets: { [username: string]: net.Socket | null } = {};
 const socketPath = '/tmp/go-server.sock';
 const RECONNECT_INTERVAL = 5000; // 5 seconds
 
-async function connectToSocket(username: string, color: string = '') { // set default value for color
+async function connectToSocket(username: string, color: string = '') { 
     if (!userSockets[username]) {
         const socket = new net.Socket();
         const connect = promisify(socket.connect).bind(socket);
 
+        // Clean up any previous listeners to prevent memory leaks
+        socket.removeAllListeners('close');
+        socket.removeAllListeners('error');
+        
         try {
             await connect(socketPath);
             console.log(`Connected to Unix Domain Socket for user ${username}.`);
@@ -120,3 +124,21 @@ export async function GET(req: Request) {
         return NextResponse.json({ message: 'Failed to connect to Unix Domain Socket' }, { status: 500 });
     }
 }
+
+// Handle graceful shutdown
+process.on('SIGINT', () => {
+    console.log('Gracefully shutting down...');
+    
+    // Close all open sockets
+    for (const username in userSockets) {
+        const socket = userSockets[username];
+        if (socket) {
+            socket.end();
+            userSockets[username] = null;
+            console.log(`Disconnected socket for user ${username}.`);
+        }
+    }
+    
+    // Exit process
+    process.exit();
+});
