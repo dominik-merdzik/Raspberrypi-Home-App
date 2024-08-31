@@ -118,6 +118,9 @@ const GoChat = () => {
                     const chunk = decoder.decode(value, { stream: true });
                     partialMessage += chunk;
 
+                     // log the chunk received from the API
+                     console.log(`Chunk received: ${chunk}`);
+
                     const messages = partialMessage.split('\n');
                     partialMessage = messages.pop() || '';
 

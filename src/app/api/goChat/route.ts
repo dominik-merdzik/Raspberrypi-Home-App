@@ -49,6 +49,7 @@ export async function POST(req: Request) {
         const body = JSON.parse(rawBody);
 
         const { username, message, color } = body;
+        console.log('POST - Request body:', body);
 
         if (!username || !color) {
             return NextResponse.json({ message: 'Username and color are required.' }, { status: 400 });
@@ -90,6 +91,7 @@ export async function GET(req: Request) {
                 const userSocket = userSockets[username];
                 if (userSocket) {
                     userSocket.on('data', (data) => {
+                        console.log(`Data to be sent to client for user ${username}:`, data.toString());
                         controller.enqueue(data);
                     });
 
@@ -116,6 +118,7 @@ export async function GET(req: Request) {
             }
         });
 
+        console.log(`GET - Streaming messages for user: ${username}.`);
         return new Response(readableStream, {
             headers: { 'Content-Type': 'text/plain' },
         });
