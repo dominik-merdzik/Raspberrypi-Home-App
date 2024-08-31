@@ -91,6 +91,7 @@ const GoChat = () => {
                 if (response.ok) {
                     setLoading(false);
                     setIsLoggedIn(true);
+                    console.log('Successfully logged in');
                 } else {
                     setUsernameError('Failed to connect');
                     setLoading(false);
@@ -104,6 +105,7 @@ const GoChat = () => {
     };
 
     const fetchMessages = async (username: string) => {
+        console.log('Fetching messages for', username);
         try {
             const response = await fetch(`/api/goChat?username=${encodeURIComponent(username)}`);
             const reader = response.body?.getReader();
