@@ -11,7 +11,7 @@ async function connectToSocket(username: string, color: string = '') {
         const socket = new net.Socket();
         const connect = promisify(socket.connect).bind(socket);
 
-        // Clean up any previous listeners to prevent memory leaks
+        // clean up any previous listeners to prevent memory leaks
         socket.removeAllListeners('close');
         socket.removeAllListeners('error');
         
@@ -128,11 +128,11 @@ export async function GET(req: Request) {
     }
 }
 
-// Handle graceful shutdown
+// handle graceful shutdown
 process.on('SIGINT', () => {
     console.log('Gracefully shutting down...');
     
-    // Close all open sockets
+    // close all open sockets
     for (const username in userSockets) {
         const socket = userSockets[username];
         if (socket) {
@@ -142,6 +142,5 @@ process.on('SIGINT', () => {
         }
     }
     
-    // Exit process
     process.exit();
 });
