@@ -11,6 +11,30 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Define ANSI escape codes for bold and colors
+const (
+	ansiBold  = "\033[1m"
+	ansiReset = "\033[0m"
+)
+
+// ANSI escape codes for basic color palette (customizable)
+var colors = map[string]string{
+	"#ff0000": "\033[31m", // Red
+	"#00ff00": "\033[32m", // Green
+	"#0000ff": "\033[34m", // Blue
+	"#61dafb": "\033[36m", // Cyan (React logo blue)
+	"#999999": "\033[37m", // Light Grey (System messages)
+}
+
+// Function to return the corresponding ANSI color code for a given hex color
+func getAnsiColor(hex string) string {
+	if color, exists := colors[hex]; exists {
+		return color
+	}
+	// Default to white if color is not in the predefined list
+	return "\033[37m"
+}
+
 var clients = make(map[*websocket.Conn]bool)           //connected clients
 var clientUsernames = make(map[string]*websocket.Conn) //map of usernames to websocket connections
 var broadcast = make(chan Message)                     //broadcast channel
@@ -52,6 +76,9 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 
+	// Log new connection
+	log.Println("New WebSocket connection established.")
+
 	mu.Lock()
 	clients[ws] = true
 	mu.Unlock()
@@ -85,6 +112,10 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	clientUsernames[initialMessage.Username] = ws
 	mu.Unlock()
 
+	// Log user joining the chat with bold and colored username
+	ansiColor := getAnsiColor(initialMessage.Color)
+	log.Printf("%s%s%s%s joined the chat with color %s", ansiBold, ansiColor, initialMessage.Username, ansiReset, initialMessage.Color)
+
 	//send join notification as a system message
 	systemMsg := Message{
 		Username: "System",
@@ -98,7 +129,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	for _, msg := range recentMessages {
 		err := ws.WriteJSON(msg)
 		if err != nil {
-			log.Printf("Error sending recent messages: %v", err)
+			log.Printf("Error sending recent messages to %s: %v", initialMessage.Username, err)
 			ws.Close()
 			delete(clients, ws)
 			delete(clientUsernames, initialMessage.Username)
@@ -112,7 +143,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		var msg Message
 		err := ws.ReadJSON(&msg)
 		if err != nil {
-			log.Printf("Error reading json: %v", err)
+			log.Printf("Error reading message from %s: %v", initialMessage.Username, err)
 			mu.Lock()
 			delete(clients, ws)
 			delete(clientUsernames, initialMessage.Username)
@@ -121,6 +152,8 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 				log.Printf("No clients connected. Cleared recent messages.")
 			}
 			mu.Unlock()
+			// Log user disconnection with bold and colored username
+			log.Printf("%s%s%s%s has left the chat.", ansiBold, ansiColor, initialMessage.Username, ansiReset)
 			break
 		}
 
@@ -134,6 +167,10 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 
 		//sanitize the message
 		msg.Message = sanitizeMessage(msg.Message)
+
+		// Log the received message with bold and colored username
+		ansiColor = getAnsiColor(msg.Color)
+		log.Printf("%s%s%s%s sent a message: %s", ansiBold, ansiColor, msg.Username, ansiReset, msg.Message)
 
 		//anti-spam logic
 		now := time.Now()
@@ -173,7 +210,7 @@ func handleMessages() {
 		for client := range clients {
 			err := client.WriteJSON(msg)
 			if err != nil {
-				log.Printf("Error writing json: %v", err)
+				log.Printf("Error sending message to client: %v", err)
 				client.Close()
 				delete(clients, client)
 				delete(clientUsernames, msg.Username)
@@ -192,7 +229,7 @@ func main() {
 	//start listening for incoming chat messages
 	go handleMessages()
 
-	log.Println("Starting WebSocket server on :8080")
+	log.Println("\n - Starting WebSocket server on :8080 - ")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}

@@ -29,9 +29,12 @@ const GoChat = () => {
         if (isLoggedIn) {
             setLoading(true);
             setConnectionFailed(false);
-
-            const socket = new WebSocket('ws://localhost:8080/ws');
-
+    
+            // Use environment variable or dynamic URL based on window.location.host
+            const socket = new WebSocket(
+                process.env.NEXT_PUBLIC_WS_URL || `ws://${window.location.host.replace(/^http/, 'ws')}/ws`
+            );
+    
             const timeoutId = setTimeout(() => {
                 if (socket.readyState !== WebSocket.OPEN) {
                     socket.close(); // Close the socket if it's still trying to connect
@@ -39,19 +42,19 @@ const GoChat = () => {
                     setConnectionFailed(true);
                 }
             }, CONNECTION_TIMEOUT);
-
+    
             socket.onopen = () => {
                 clearTimeout(timeoutId);
                 socket.send(JSON.stringify({ username, color }));
                 setLoading(false);
             };
-
+    
             socket.onmessage = (event) => {
                 const incomingMessage = JSON.parse(event.data);
-
+    
                 if (incomingMessage.message.includes("Username is already taken")) {
                     setUsernameError(incomingMessage.message);
-                    setIsLoggedIn(false); //go back to login state to allow user to choose a new name
+                    setIsLoggedIn(false); // Go back to login state to allow user to choose a new name
                     setWs(null);
                 } else if (incomingMessage.message.includes("Please wait")) {
                     setCooldownTime(COOLDOWN_TIME);
@@ -59,20 +62,21 @@ const GoChat = () => {
                     setChat((prevChat) => [...prevChat, incomingMessage]);
                 }
             };
-
+    
             socket.onerror = (error) => {
                 console.error('WebSocket error:', error);
                 setConnectionFailed(true);
             };
-
+    
             setWs(socket);
-
+    
             return () => {
                 clearTimeout(timeoutId);
                 socket.close();
             };
         }
     }, [isLoggedIn]);
+    
 
     const retryConnection = () => {
         setConnectionFailed(false);
